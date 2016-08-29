@@ -1,0 +1,124 @@
+import numpy as np
+import random as rnd
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+d = 2
+n = 4
+STEPS = 100
+ALPHA = 0.8
+GAMMA = 0.5
+BETTA = 0.2
+K_h = 1
+y = np.random.rand(STEPS+1, n)
+w = np.random.rand(STEPS+1, n, d)
+A = np.matrix([[0.2, 0.8, 0, 0], [0, 0.2, 0.8, 0], [0, 0, 0.2, 0.8], [0.8, 0, 0, 0.2]])
+P = np.matrix([[1, 0, 0, 0]])
+S = np.matrix([[0, 0], [0, 1], [1, 1], [1, 0]])
+m = np.zeros((STEPS+1, n, n))
+SIGMA_TIME = 0.3
+SIGMA_DIST = 0.1
+################################
+def drawInitialPoints():
+    for i in range(n):
+        x = S[i,0]
+        y = S[i,1]
+        plt.scatter(x,y, c = 'b')
+    #plt.show()
+################################
+def drawNeurons(t):
+    for i in range(n):
+        x = w[t,i,0]
+        y = w[t,i,1]
+        plt.scatter(x,y, c = 'y')
+################################
+def GAUSSIAN_DIST (a, b, SIGMA):
+    y = -np.linalg.norm(a-b)*np.linalg.norm(a-b)/(2*SIGMA*SIGMA)
+    ans = np.exp(y)
+    return ans
+def GAUSSIAN_TIME (t, SIGMA):
+    y = -np.sqrt(t)/(2*SIGMA)
+    ans = np.exp(y)
+    return ans
+################################
+def generateSequence ():
+    ans = P
+    seq = np.zeros((STEPS, n))
+    for i in range(STEPS):
+        curState = ans*A
+        ans = curState
+        seq[i,:] = ans
+    return seq
+
+################################
+def getX (step, seq):
+    r = rnd.random()
+    for i in range(n):
+        if r < seq[step, i]:
+            return S[i,:]
+    amax = np.argmax(seq[step,:])
+    return S[amax,:]
+################################
+def drawCircle(bmu, rad):
+    fig = plt.gcf()
+    ax = plt.gca()
+    circle = plt.Circle((bmu[0],bmu[1]),rad,fill=False)
+    ax.add_artist(circle)
+################################
+def updateTempWeights(t, b, x, m):
+    if (t != 0):
+        m[t,:,:] = m[t-1,:,:]
+        minDist = np.iinfo(np.int16).max
+        k = 0;
+        for i in range(n):
+            ALPHA = GAUSSIAN_DIST(x, w[t,i,:], SIGMA=0.3)
+            m[t,i,b] = m[t,i,b] + ALPHA*np.sqrt(t)
+            # if (np.linalg.norm(x-w[t,i,:]) < minDist):
+            #     k = i
+            #     minDist = np.linalg.norm(x-w[t,i,:])
+        #m[t,k,b] = m[t,k,b] + 1
+    #print m[t,:,:]
+################################
+def getBMU (points, x):
+    #the nearest point to x
+    ans = points[0,:]
+    minDist = np.iinfo(np.int16).max
+    for i in range(n):
+        if (np.linalg.norm(points[i,:]-x) < minDist):
+            minDist = np.linalg.norm(points[i,:]-x)
+            ans = points[i,:]
+            b = i
+    return ans, b
+seq = generateSequence()
+prevX = 0 #contains previus input vector
+for t in range(STEPS):
+    drawInitialPoints()
+    animList = []
+    #x = getX(t, seq)
+    x = S[t%4,:]
+    plt.scatter(x[0,0], x[0,1], c='r')
+    #define the radius of bmu
+    bmuRad = GAUSSIAN_TIME(t, SIGMA_TIME)
+    #define bmu
+    bmu, b = getBMU(w[t,:,:], x)
+    updateTempWeights(t,b,prevX,m)
+    prevX = x
+    for i in range(n):
+        #for each neuron in bmu
+        neuron = w[t,i,:]
+        if (np.linalg.norm(bmu-neuron) < bmuRad):
+            #update weight
+            GD = GAUSSIAN_DIST(neuron, bmu, SIGMA_DIST)
+            GT = GAUSSIAN_TIME(t, SIGMA=1.2)
+            DIFF = x - neuron
+            w[t+1,i,:] = w[t,i,:] + GD*GT*DIFF
+        else:
+            w[t+1,i,:] = w[t,i,:]
+    #normalize
+    drawNeurons(t)
+    plt.scatter(bmu[0], bmu[1], c='g')
+    drawCircle(bmu, bmuRad)
+    #plt.show()
+print w[STEPS,:,:]
+for i in range(n):
+         m[STEPS-1,i,:] = m[STEPS-1,i,:]/sum(m[STEPS-1,i,:])
+print m[STEPS-1,:,:]
